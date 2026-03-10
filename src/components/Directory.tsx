@@ -92,7 +92,7 @@ const FriendItem = ({ user, active, onClick }: { user: User; active: boolean; on
         {user.name.charAt(0)}
       </div>
       {user.online && (
-        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2 border-sidebar" />
+        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-sidebar" />
       )}
     </div>
     <span className="truncate">{user.name}</span>
