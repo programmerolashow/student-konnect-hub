@@ -24,6 +24,7 @@ const HomePage = () => {
 
   const stacksContext = view === "messages" ? "chat" : view === "profile" ? "profile" : "feed";
 
+
   return (
     <div className="h-screen flex overflow-hidden bg-background">
       {/* Mobile header */}
