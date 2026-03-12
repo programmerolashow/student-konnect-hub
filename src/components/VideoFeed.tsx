@@ -17,9 +17,9 @@ const VideoFeed = () => {
     const fetchVideos = async () => {
       const { data } = await supabase
         .from("videos")
-        .select("*, profiles!videos_user_id_fkey(*)")
+        .select("*, profiles(*)")
         .order("created_at", { ascending: false });
-      setVideos((data as VideoWithAuthor[]) || []);
+      setVideos((data as unknown as VideoWithAuthor[]) || []);
 
       if (user) {
         const { data: acks } = await supabase.from("video_acknowledges").select("video_id").eq("user_id", user.id);
