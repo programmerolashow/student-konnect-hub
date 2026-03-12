@@ -5,7 +5,7 @@ import { Tables } from "@/integrations/supabase/types";
 import { motion } from "framer-motion";
 import { Play, MessageSquare, Circle, CheckCircle, ChevronRight } from "lucide-react";
 
-type VideoWithAuthor = Tables<"videos"> & { profiles: Tables<"profiles"> };
+type VideoWithAuthor = Tables<"videos"> & { profiles: Tables<"profiles"> | null };
 
 const VideoFeed = () => {
   const { user } = useAuth();
