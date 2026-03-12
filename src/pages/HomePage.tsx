@@ -6,9 +6,10 @@ import MessagingView from "@/components/MessagingView";
 import ProfileView from "@/components/ProfileView";
 import Stacks from "@/components/Stacks";
 import { currentUser } from "@/lib/mock-data";
-import { Video, MessageCircle, User, LogOut, Menu, X } from "lucide-react";
+import ConnectionsView from "@/components/ConnectionsView";
+import { Video, MessageCircle, User, Users, LogOut, Menu, X } from "lucide-react";
 
-type View = "feed" | "messages" | "profile";
+type View = "feed" | "messages" | "connections" | "profile";
 
 const HomePage = () => {
   const [view, setView] = useState<View>("feed");
@@ -22,6 +23,7 @@ const HomePage = () => {
   };
 
   const stacksContext = view === "messages" ? "chat" : view === "profile" ? "profile" : "feed";
+
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
@@ -68,6 +70,7 @@ const HomePage = () => {
           <div className="flex items-center gap-1">
             <NavTab icon={<Video size={16} />} label="Feed" active={view === "feed"} onClick={() => setView("feed")} />
             <NavTab icon={<MessageCircle size={16} />} label="Messages" active={view === "messages"} onClick={() => { setView("messages"); setActiveChatUserId(undefined); }} />
+            <NavTab icon={<Users size={16} />} label="Connect" active={view === "connections"} onClick={() => setView("connections")} />
             <NavTab icon={<User size={16} />} label="Profile" active={view === "profile"} onClick={() => setView("profile")} />
           </div>
           <button className="hidden lg:flex items-center gap-1.5 text-sm font-display text-muted-foreground hover:text-foreground transition-colors">
@@ -91,6 +94,7 @@ const HomePage = () => {
             >
               {view === "feed" && <VideoFeed />}
               {view === "messages" && <MessagingView activeChatUserId={activeChatUserId} onBack={() => setActiveChatUserId(undefined)} />}
+              {view === "connections" && <ConnectionsView />}
               {view === "profile" && <ProfileView />}
             </motion.div>
           </AnimatePresence>
