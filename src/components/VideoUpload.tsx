@@ -90,8 +90,8 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
 
       toast.success("Video posted!");
       onComplete();
-    } catch (err: any) {
-      toast.error(err.message || "Upload failed.");
+    } catch (error) {
+      toast.error(error.message || "Upload failed.");
     } finally {
       setUploading(false);
     }

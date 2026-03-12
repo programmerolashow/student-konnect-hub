@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import heroPattern from "@/assets/hero-pattern.jpg";
+import heroPattern from "/background.png";
 import { useEffect } from "react";
 
 const AuthPage = () => {
@@ -78,8 +78,8 @@ const AuthPage = () => {
         });
         if (error) throw error;
       }
-    } catch (err: any) {
-      setError(err.message || "Something went wrong.");
+    } catch (error) {
+      setError(error.message || "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
@@ -90,15 +90,12 @@ const AuthPage = () => {
       {/* Left - Hero */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img src={heroPattern} alt="Student Konnect abstract campus pattern" className="absolute inset-0 w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-ink/60" />
+        {/* <div className="absolute inset-0 bg-ink/60" />
         <div className="relative z-10 flex flex-col justify-end p-12">
-          <h1 className="text-5xl font-bold font-display text-primary-foreground mb-4 tracking-tight">
-            Student<br />Konnect
-          </h1>
-          <p className="font-body text-lg text-primary-foreground/80 max-w-md leading-relaxed">
+          <p className="font-body font-semibold text-lg text-primary-foreground/80 max-w-md leading-relaxed">
             A place for students to connect, share, and grow together — across departments, faculties, and schools.
           </p>
-        </div>
+        </div> */}
       </div>
 
       {/* Right - Form */}
