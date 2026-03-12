@@ -70,6 +70,7 @@ const HomePage = () => {
           <div className="flex items-center gap-1">
             <NavTab icon={<Video size={16} />} label="Feed" active={view === "feed"} onClick={() => setView("feed")} />
             <NavTab icon={<MessageCircle size={16} />} label="Messages" active={view === "messages"} onClick={() => { setView("messages"); setActiveChatUserId(undefined); }} />
+            <NavTab icon={<Users size={16} />} label="Connect" active={view === "connections"} onClick={() => setView("connections")} />
             <NavTab icon={<User size={16} />} label="Profile" active={view === "profile"} onClick={() => setView("profile")} />
           </div>
           <button className="hidden lg:flex items-center gap-1.5 text-sm font-display text-muted-foreground hover:text-foreground transition-colors">
