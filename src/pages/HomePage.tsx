@@ -94,6 +94,7 @@ const HomePage = () => {
             >
               {view === "feed" && <VideoFeed />}
               {view === "messages" && <MessagingView activeChatUserId={activeChatUserId} onBack={() => setActiveChatUserId(undefined)} />}
+              {view === "connections" && <ConnectionsView />}
               {view === "profile" && <ProfileView />}
             </motion.div>
           </AnimatePresence>
