@@ -1,16 +1,30 @@
-import { announcements, users, departmentGroups } from "@/lib/mock-data";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Tables } from "@/integrations/supabase/types";
 import { Megaphone, Users, BookOpen } from "lucide-react";
+import { announcements } from "@/lib/mock-data";
 
 interface StacksProps {
   context: "feed" | "chat" | "profile";
 }
 
 const Stacks = ({ context }: StacksProps) => {
+  const { user } = useAuth();
+  const [suggested, setSuggested] = useState<Tables<"profiles">[]>([]);
+
+  useEffect(() => {
+    const fetchSuggested = async () => {
+      const { data } = await supabase.from("profiles").select("*").neq("user_id", user?.id || "").limit(5);
+      setSuggested(data || []);
+    };
+    fetchSuggested();
+  }, [user]);
+
   return (
     <div className="h-full bg-sidebar border-l border-sidebar-border p-4 space-y-6">
       {context === "feed" && (
         <>
-          {/* Announcements */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <Megaphone size={14} className="text-primary" />
@@ -26,25 +40,23 @@ const Stacks = ({ context }: StacksProps) => {
             </div>
           </section>
 
-          {/* Suggested connections */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <Users size={14} className="text-primary" />
               <h3 className="text-xs font-display font-semibold text-muted-foreground uppercase tracking-wider">People you may know</h3>
             </div>
             <div className="space-y-2">
-              {users.slice(3, 6).map((user) => (
-                <div key={user.id} className="flex items-center gap-2.5 p-2 rounded-md hover:bg-accent transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
-                    {user.name.charAt(0)}
-                  </div>
+              {suggested.map((p) => (
+                <div key={p.id} className="flex items-center gap-2.5 p-2 rounded-md hover:bg-accent transition-colors">
+                  {p.avatar_url ? (
+                    <img src={p.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">{p.name.charAt(0)}</div>
+                  )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-display font-medium text-foreground truncate">{user.name}</p>
-                    <p className="text-xs text-muted-foreground font-display">{user.department}</p>
+                    <p className="text-sm font-display font-medium text-foreground truncate">{p.name}</p>
+                    <p className="text-xs text-muted-foreground font-display">{p.department}</p>
                   </div>
-                  <button className="text-xs font-display font-semibold text-primary hover:opacity-80 transition-opacity">
-                    Connect
-                  </button>
                 </div>
               ))}
             </div>
@@ -70,17 +82,19 @@ const Stacks = ({ context }: StacksProps) => {
         <section>
           <div className="flex items-center gap-2 mb-3">
             <Users size={14} className="text-primary" />
-            <h3 className="text-xs font-display font-semibold text-muted-foreground uppercase tracking-wider">Mutual Connections</h3>
+            <h3 className="text-xs font-display font-semibold text-muted-foreground uppercase tracking-wider">Suggested Connections</h3>
           </div>
           <div className="space-y-2">
-            {users.slice(0, 3).map((user) => (
-              <div key={user.id} className="flex items-center gap-2.5 p-2 rounded-md hover:bg-accent transition-colors">
-                <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
-                  {user.name.charAt(0)}
-                </div>
+            {suggested.slice(0, 3).map((p) => (
+              <div key={p.id} className="flex items-center gap-2.5 p-2 rounded-md hover:bg-accent transition-colors">
+                {p.avatar_url ? (
+                  <img src={p.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">{p.name.charAt(0)}</div>
+                )}
                 <div className="min-w-0">
-                  <p className="text-sm font-display font-medium text-foreground truncate">{user.name}</p>
-                  <p className="text-xs text-muted-foreground font-display">{user.school}</p>
+                  <p className="text-sm font-display font-medium text-foreground truncate">{p.name}</p>
+                  <p className="text-xs text-muted-foreground font-display">{p.school}</p>
                 </div>
               </div>
             ))}

@@ -4,17 +4,19 @@ import Directory from "@/components/Directory";
 import VideoFeed from "@/components/VideoFeed";
 import MessagingView from "@/components/MessagingView";
 import ProfileView from "@/components/ProfileView";
-import Stacks from "@/components/Stacks";
-import { currentUser } from "@/lib/mock-data";
 import ConnectionsView from "@/components/ConnectionsView";
-import { Video, MessageCircle, User, Users, LogOut, Menu, X } from "lucide-react";
+import VideoUpload from "@/components/VideoUpload";
+import Stacks from "@/components/Stacks";
+import { useAuth } from "@/contexts/AuthContext";
+import { Video, MessageCircle, User, Users, Upload, LogOut, Menu, X } from "lucide-react";
 
-type View = "feed" | "messages" | "connections" | "profile";
+type View = "feed" | "messages" | "connections" | "profile" | "upload";
 
 const HomePage = () => {
   const [view, setView] = useState<View>("feed");
   const [activeChatUserId, setActiveChatUserId] = useState<string | undefined>();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { profile, signOut } = useAuth();
 
   const handleSelectChat = (userId: string) => {
     setActiveChatUserId(userId);
@@ -23,7 +25,7 @@ const HomePage = () => {
   };
 
   const stacksContext = view === "messages" ? "chat" : view === "profile" ? "profile" : "feed";
-
+  const displayName = profile?.name || "User";
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
@@ -35,7 +37,7 @@ const HomePage = () => {
         <h1 className="text-base font-display font-bold text-foreground">Student Konnect</h1>
         <button onClick={() => setView("profile")}>
           <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
-            {currentUser.name.charAt(0)}
+            {displayName.charAt(0)}
           </div>
         </button>
       </div>
@@ -69,16 +71,26 @@ const HomePage = () => {
         <div className="border-b border-border px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-1">
             <NavTab icon={<Video size={16} />} label="Feed" active={view === "feed"} onClick={() => setView("feed")} />
+            <NavTab icon={<Upload size={16} />} label="Upload" active={view === "upload"} onClick={() => setView("upload")} />
             <NavTab icon={<MessageCircle size={16} />} label="Messages" active={view === "messages"} onClick={() => { setView("messages"); setActiveChatUserId(undefined); }} />
             <NavTab icon={<Users size={16} />} label="Connect" active={view === "connections"} onClick={() => setView("connections")} />
             <NavTab icon={<User size={16} />} label="Profile" active={view === "profile"} onClick={() => setView("profile")} />
           </div>
-          <button className="hidden lg:flex items-center gap-1.5 text-sm font-display text-muted-foreground hover:text-foreground transition-colors">
-            <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
-              {currentUser.name.charAt(0)}
-            </div>
-            <span className="text-sm">{currentUser.name.split(" ")[0]}</span>
-          </button>
+          <div className="hidden lg:flex items-center gap-3">
+            <button onClick={() => setView("profile")} className="flex items-center gap-1.5 text-sm font-display text-muted-foreground hover:text-foreground transition-colors">
+              <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
+                {displayName.charAt(0)}
+              </div>
+              <span className="text-sm">{displayName.split(" ")[0]}</span>
+            </button>
+            <button
+              onClick={signOut}
+              className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              title="Sign out"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -93,6 +105,7 @@ const HomePage = () => {
               className="h-full"
             >
               {view === "feed" && <VideoFeed />}
+              {view === "upload" && <VideoUpload onComplete={() => setView("feed")} />}
               {view === "messages" && <MessagingView activeChatUserId={activeChatUserId} onBack={() => setActiveChatUserId(undefined)} />}
               {view === "connections" && <ConnectionsView />}
               {view === "profile" && <ProfileView />}
