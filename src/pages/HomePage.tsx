@@ -6,9 +6,10 @@ import MessagingView from "@/components/MessagingView";
 import ProfileView from "@/components/ProfileView";
 import Stacks from "@/components/Stacks";
 import { currentUser } from "@/lib/mock-data";
-import { Video, MessageCircle, User, LogOut, Menu, X } from "lucide-react";
+import ConnectionsView from "@/components/ConnectionsView";
+import { Video, MessageCircle, User, Users, LogOut, Menu, X } from "lucide-react";
 
-type View = "feed" | "messages" | "profile";
+type View = "feed" | "messages" | "connections" | "profile";
 
 const HomePage = () => {
   const [view, setView] = useState<View>("feed");
