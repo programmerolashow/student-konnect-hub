@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tables } from "@/integrations/supabase/types";
-import { MessageCircle, Users, Hash } from "lucide-react";
+import { MessageCircle, Users, Hash, Video } from "lucide-react";
 
 interface DirectoryProps {
   onSelectChat: (userId: string) => void;
   activeChat?: string;
+  onNavChange?: (view: string) => void;
 }
 
-const Directory = ({ onSelectChat, activeChat }: DirectoryProps) => {
+const Directory = ({ onSelectChat, activeChat, onNavChange }: DirectoryProps) => {
   const { user } = useAuth();
   const [friends, setFriends] = useState<Tables<"profiles">[]>([]);
 
@@ -41,9 +42,10 @@ const Directory = ({ onSelectChat, activeChat }: DirectoryProps) => {
       </div>
 
       <nav className="p-3 space-y-1">
-        <NavItem icon={<Hash size={16} />} label="Feed" />
-        <NavItem icon={<MessageCircle size={16} />} label="Messages" />
-        <NavItem icon={<Users size={16} />} label="Connections" />
+        <NavItem icon={<Video size={16} />} label="Feed" onClick={() => onNavChange?.("feed")} />
+        <NavItem icon={<MessageCircle size={16} />} label="Messages" onClick={() => onNavChange?.("messages")} />
+        <NavItem icon={<Users size={16} />} label="Connections" onClick={() => onNavChange?.("connections")} />
+        <NavItem icon={<Hash size={16} />} label="Profile" onClick={() => onNavChange?.("profile")} />
       </nav>
 
       <div className="px-3 mt-5 flex-1 overflow-y-auto">
@@ -66,8 +68,8 @@ const Directory = ({ onSelectChat, activeChat }: DirectoryProps) => {
   );
 };
 
-const NavItem = ({ icon, label }: { icon: React.ReactNode; label: string }) => (
-  <button className="w-full flex items-center gap-2.5 px-2 py-2 text-sm font-display font-medium text-sidebar-foreground hover:bg-sidebar-accent rounded transition-colors">
+const NavItem = ({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick?: () => void }) => (
+  <button onClick={onClick} className="w-full flex items-center gap-2.5 px-2 py-2 text-sm font-display font-medium text-sidebar-foreground hover:bg-sidebar-accent rounded transition-colors">
     {icon}
     {label}
   </button>
@@ -82,7 +84,7 @@ const FriendItem = ({ profile, active, onClick }: { profile: Tables<"profiles">;
       {profile.avatar_url ? (
         <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
       ) : (
-        <div className="w-7 h-7 rounded-full bg-concrete flex items-center justify-center text-xs font-semibold text-foreground">
+        <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-semibold text-foreground">
           {profile.name.charAt(0)}
         </div>
       )}

@@ -7,6 +7,7 @@ import ProfileView from "@/components/ProfileView";
 import ConnectionsView from "@/components/ConnectionsView";
 import VideoUpload from "@/components/VideoUpload";
 import Stacks from "@/components/Stacks";
+import NotificationsPanel from "@/components/NotificationsPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { Video, MessageCircle, User, Users, Upload, LogOut, Menu, X } from "lucide-react";
 
@@ -24,6 +25,11 @@ const HomePage = () => {
     setMobileMenuOpen(false);
   };
 
+  const handleNavChange = (navView: string) => {
+    setView(navView as View);
+    setMobileMenuOpen(false);
+  };
+
   const stacksContext = view === "messages" ? "chat" : view === "profile" ? "profile" : "feed";
   const displayName = profile?.name || "User";
 
@@ -35,11 +41,14 @@ const HomePage = () => {
           {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <h1 className="text-base font-display font-bold text-foreground">Student Konnect</h1>
-        <button onClick={() => setView("profile")}>
-          <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
-            {displayName.charAt(0)}
-          </div>
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationsPanel />
+          <button onClick={() => setView("profile")}>
+            <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
+              {displayName.charAt(0)}
+            </div>
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu overlay */}
@@ -53,16 +62,16 @@ const HomePage = () => {
             className="lg:hidden fixed inset-0 z-40 pt-14"
           >
             <div className="h-full w-72 bg-background">
-              <Directory onSelectChat={handleSelectChat} activeChat={activeChatUserId} />
+              <Directory onSelectChat={handleSelectChat} activeChat={activeChatUserId} onNavChange={handleNavChange} />
             </div>
-            <div className="absolute inset-0 -z-10 bg-ink/20" onClick={() => setMobileMenuOpen(false)} />
+            <div className="absolute inset-0 -z-10 bg-foreground/20" onClick={() => setMobileMenuOpen(false)} />
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Desktop: Left Column - Directory */}
       <div className="hidden lg:block w-60 flex-shrink-0">
-        <Directory onSelectChat={handleSelectChat} activeChat={activeChatUserId} />
+        <Directory onSelectChat={handleSelectChat} activeChat={activeChatUserId} onNavChange={handleNavChange} />
       </div>
 
       {/* Center Column - The Quad */}
@@ -77,10 +86,15 @@ const HomePage = () => {
             <NavTab icon={<User size={16} />} label="Profile" active={view === "profile"} onClick={() => setView("profile")} />
           </div>
           <div className="hidden lg:flex items-center gap-3">
+            <NotificationsPanel />
             <button onClick={() => setView("profile")} className="flex items-center gap-1.5 text-sm font-display text-muted-foreground hover:text-foreground transition-colors">
-              <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
-                {displayName.charAt(0)}
-              </div>
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
+                  {displayName.charAt(0)}
+                </div>
+              )}
               <span className="text-sm">{displayName.split(" ")[0]}</span>
             </button>
             <button

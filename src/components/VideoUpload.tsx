@@ -20,11 +20,14 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [isShort, setIsShort] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recordStartTimeRef = useRef<number>(0);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -54,6 +57,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
         if (videoRef.current) videoRef.current.srcObject = null;
       };
       mediaRecorderRef.current = recorder;
+      recordStartTimeRef.current = Date.now();
       recorder.start();
       setRecording(true);
     } catch {
@@ -65,6 +69,15 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
     mediaRecorderRef.current?.stop();
     setRecording(false);
   }, []);
+
+  // Detect video duration from preview
+  const handlePreviewLoadedMetadata = () => {
+    if (previewVideoRef.current) {
+      const dur = previewVideoRef.current.duration;
+      if (dur && dur <= 60) setIsShort(true);
+      else setIsShort(false);
+    }
+  };
 
   const handleUpload = async () => {
     if (!videoFile || !user || !title.trim()) {
@@ -80,17 +93,20 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
 
       const { data: { publicUrl } } = supabase.storage.from("videos").getPublicUrl(path);
 
+      const duration = previewVideoRef.current?.duration ? Math.round(previewVideoRef.current.duration) : null;
+
       const { error: insertError } = await supabase.from("videos").insert({
         user_id: user.id,
         title: title.trim(),
         description: description.trim(),
         video_url: publicUrl,
+        duration,
       });
       if (insertError) throw insertError;
 
-      toast.success("Video posted!");
+      toast.success(isShort ? "Short posted! 🎬" : "Video posted!");
       onComplete();
-    } catch (error) {
+    } catch (error: any) {
       toast.error(error.message || "Upload failed.");
     } finally {
       setUploading(false);
@@ -103,6 +119,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
     setVideoPreviewUrl(null);
     setTitle("");
     setDescription("");
+    setIsShort(false);
     streamRef.current?.getTracks().forEach((t) => t.stop());
   };
 
@@ -151,16 +168,22 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
                 </Button>
               )}
             </div>
+            <p className="text-xs text-muted-foreground font-body">💡 Tip: Videos under 60 seconds will be posted as "Shorts"</p>
           </div>
         )}
 
         {videoPreviewUrl && (
           <div className="space-y-4">
-            <div className="relative aspect-video bg-ink rounded-lg overflow-hidden">
-              <video src={videoPreviewUrl} className="w-full h-full object-cover" controls />
+            <div className={`relative bg-ink rounded-lg overflow-hidden ${isShort ? "aspect-[9/16] max-h-[400px] max-w-[225px] mx-auto" : "aspect-video"}`}>
+              <video ref={previewVideoRef} src={videoPreviewUrl} className="w-full h-full object-cover" controls onLoadedMetadata={handlePreviewLoadedMetadata} />
               <button onClick={reset} className="absolute top-3 right-3 p-1.5 bg-ink/70 rounded-full text-primary-foreground hover:bg-ink transition-colors">
                 <X size={16} />
               </button>
+              {isShort && (
+                <div className="absolute top-3 left-3 px-2 py-0.5 bg-primary text-primary-foreground text-[10px] font-display font-bold rounded-full">
+                  SHORT
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-display font-medium text-foreground mb-1.5">Title *</label>
@@ -179,7 +202,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
             <div className="flex gap-3">
               <Button variant="secondary" onClick={reset} className="font-display">Cancel</Button>
               <Button onClick={handleUpload} disabled={uploading || !title.trim()} className="font-display gap-2">
-                {uploading ? "Uploading..." : "Post Video"}
+                {uploading ? "Uploading..." : isShort ? "Post Short 🎬" : "Post Video"}
               </Button>
             </div>
           </div>

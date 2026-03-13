@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tables } from "@/integrations/supabase/types";
-import { motion } from "framer-motion";
-import { Play, MessageSquare, Circle, CheckCircle, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { MessageSquare, Circle, CheckCircle } from "lucide-react";
+import VideoComments from "./VideoComments";
 
 type VideoWithAuthor = Tables<"videos"> & { profiles: Tables<"profiles"> | null };
 
@@ -12,6 +13,7 @@ const VideoFeed = () => {
   const [videos, setVideos] = useState<VideoWithAuthor[]>([]);
   const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [openCommentsId, setOpenCommentsId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -55,50 +57,70 @@ const VideoFeed = () => {
         </div>
       )}
       <div className="space-y-8">
-        {videos.map((video, i) => (
-          <motion.div key={video.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.3 }}>
-            <article className="bg-card border border-border rounded-lg overflow-hidden">
-              <div className="relative aspect-video bg-concrete flex items-center justify-center cursor-pointer group">
-                {video.thumbnail_url ? (
-                  <img src={video.thumbnail_url} alt={video.title} className="absolute inset-0 w-full h-full object-cover" />
-                ) : null}
-                <video
-                  src={video.video_url}
-                  className="absolute inset-0 w-full h-full object-cover"
-                  controls
-                  preload="metadata"
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex items-center gap-2.5 mb-3">
-                  {video.profiles?.avatar_url ? (
-                    <img src={video.profiles.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
-                      {video.profiles?.name?.charAt(0) || "?"}
+        {videos.map((video, i) => {
+          const isShort = video.duration && video.duration <= 60;
+          return (
+            <motion.div key={video.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.3 }}>
+              <article className="bg-card border border-border rounded-lg overflow-hidden">
+                <div className={`relative bg-ink flex items-center justify-center cursor-pointer group ${isShort ? "aspect-[9/16] max-h-[500px] mx-auto max-w-[280px]" : "aspect-video"}`}>
+                  {video.thumbnail_url && !isShort ? (
+                    <img src={video.thumbnail_url} alt={video.title} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : null}
+                  <video
+                    src={video.video_url}
+                    className="absolute inset-0 w-full h-full object-cover"
+                    controls
+                    preload="metadata"
+                  />
+                  {isShort && (
+                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary text-primary-foreground text-[10px] font-display font-bold rounded-full">
+                      SHORT
                     </div>
                   )}
-                  <div>
-                    <p className="text-sm font-display font-medium text-foreground">{video.profiles?.name}</p>
-                    <p className="text-xs text-muted-foreground font-display">{video.profiles?.department} · {getTimeAgo(video.created_at)}</p>
+                </div>
+                <div className="p-4">
+                  <div className="flex items-center gap-2.5 mb-3">
+                    {video.profiles?.avatar_url ? (
+                      <img src={video.profiles.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
+                        {video.profiles?.name?.charAt(0) || "?"}
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-sm font-display font-medium text-foreground">{video.profiles?.name}</p>
+                      <p className="text-xs text-muted-foreground font-display">{video.profiles?.department} · {getTimeAgo(video.created_at)}</p>
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-display font-semibold text-foreground mb-1">{video.title}</h3>
+                  <p className="text-sm font-body text-muted-foreground leading-relaxed">{video.description}</p>
+                  <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border">
+                    <button onClick={() => handleAcknowledge(video.id)} className={`flex items-center gap-1.5 text-sm font-display transition-colors ${acknowledgedIds.has(video.id) ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
+                      {acknowledgedIds.has(video.id) ? <CheckCircle size={14} /> : <Circle size={14} />}
+                      <span>{video.acknowledges} Acknowledge{video.acknowledges !== 1 ? "s" : ""}</span>
+                    </button>
+                    <button
+                      onClick={() => setOpenCommentsId(openCommentsId === video.id ? null : video.id)}
+                      className={`flex items-center gap-1.5 text-sm font-display transition-colors ${openCommentsId === video.id ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      <MessageSquare size={14} />
+                      <span>{video.comments_count} comments</span>
+                    </button>
                   </div>
                 </div>
-                <h3 className="text-lg font-display font-semibold text-foreground mb-1">{video.title}</h3>
-                <p className="text-sm font-body text-muted-foreground leading-relaxed">{video.description}</p>
-                <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border">
-                  <button onClick={() => handleAcknowledge(video.id)} className={`flex items-center gap-1.5 text-sm font-display transition-colors ${acknowledgedIds.has(video.id) ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
-                    {acknowledgedIds.has(video.id) ? <CheckCircle size={14} /> : <Circle size={14} />}
-                    <span>{video.acknowledges} Acknowledge{video.acknowledges !== 1 ? "s" : ""}</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground font-display transition-colors">
-                    <MessageSquare size={14} />
-                    <span>{video.comments_count} comments</span>
-                  </button>
-                </div>
-              </div>
-            </article>
-          </motion.div>
-        ))}
+                <AnimatePresence>
+                  {openCommentsId === video.id && (
+                    <VideoComments
+                      videoId={video.id}
+                      onClose={() => setOpenCommentsId(null)}
+                      onCountChange={(count) => setVideos((prev) => prev.map((v) => v.id === video.id ? { ...v, comments_count: count } : v))}
+                    />
+                  )}
+                </AnimatePresence>
+              </article>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );
