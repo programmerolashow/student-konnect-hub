@@ -5,9 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import heroPattern from "/background.png";
 import { useEffect } from "react";
+import { toast } from "sonner";
 
 const AuthPage = () => {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [step, setStep] = useState(1);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -34,9 +35,29 @@ const AuthPage = () => {
     setError("");
   };
 
+  const switchMode = (newMode: "login" | "register" | "forgot") => {
+    setMode(newMode);
+    setStep(1);
+    setError("");
+    setForm((prev) => ({ ...prev, password: "" }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (mode === "forgot") {
+      if (!form.email) { setError("Please enter your email."); return; }
+      setSubmitting(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(form.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      setSubmitting(false);
+      if (error) { setError(error.message); return; }
+      toast.success("Password reset link sent! Check your email.");
+      switchMode("login");
+      return;
+    }
 
     if (mode === "register" && step === 1) {
       if (!form.name || !form.username || !form.email || !form.password) {
@@ -78,8 +99,9 @@ const AuthPage = () => {
         });
         if (error) throw error;
       }
-    } catch (error) {
-      setError(error.message || "Something went wrong.");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong.");
+      setForm((prev) => ({ ...prev, password: "" }));
     } finally {
       setSubmitting(false);
     }
@@ -90,12 +112,6 @@ const AuthPage = () => {
       {/* Left - Hero */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img src={heroPattern} alt="Student Konnect abstract campus pattern" className="absolute inset-0 w-full h-full object-cover" />
-        {/* <div className="absolute inset-0 bg-ink/60" />
-        <div className="relative z-10 flex flex-col justify-end p-12">
-          <p className="font-body font-semibold text-lg text-primary-foreground/80 max-w-md leading-relaxed">
-            A place for students to connect, share, and grow together — across departments, faculties, and schools.
-          </p>
-        </div> */}
       </div>
 
       {/* Right - Form */}
@@ -105,20 +121,22 @@ const AuthPage = () => {
             <h1 className="text-3xl font-bold font-display text-foreground tracking-tight">Student Konnect</h1>
           </div>
 
-          <div className="flex gap-1 mb-8 bg-accent rounded-md p-1">
-            <button
-              onClick={() => { setMode("login"); setStep(1); setError(""); }}
-              className={`flex-1 py-2.5 text-sm font-display font-medium rounded transition-colors ${mode === "login" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => { setMode("register"); setStep(1); setError(""); }}
-              className={`flex-1 py-2.5 text-sm font-display font-medium rounded transition-colors ${mode === "register" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Register
-            </button>
-          </div>
+          {mode !== "forgot" && (
+            <div className="flex gap-1 mb-8 bg-accent rounded-md p-1">
+              <button
+                onClick={() => switchMode("login")}
+                className={`flex-1 py-2.5 text-sm font-display font-medium rounded transition-colors ${mode === "login" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => switchMode("register")}
+                className={`flex-1 py-2.5 text-sm font-display font-medium rounded transition-colors ${mode === "register" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                Register
+              </button>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive font-body">
@@ -136,6 +154,22 @@ const AuthPage = () => {
               onSubmit={handleSubmit}
               className="space-y-5"
             >
+              {mode === "forgot" && (
+                <>
+                  <div>
+                    <h2 className="text-2xl font-display font-semibold text-foreground mb-1">Reset Password</h2>
+                    <p className="text-sm text-muted-foreground font-body">Enter your email and we'll send you a reset link.</p>
+                  </div>
+                  <InputField label="Email" type="email" value={form.email} onChange={(v) => handleChange("email", v)} placeholder="you@university.edu" />
+                  <button type="submit" disabled={submitting} className="w-full py-3 bg-primary text-primary-foreground font-display font-semibold rounded-md hover:opacity-90 transition-opacity disabled:opacity-50">
+                    {submitting ? "Sending..." : "Send Reset Link"}
+                  </button>
+                  <button type="button" onClick={() => switchMode("login")} className="w-full text-sm font-display text-muted-foreground hover:text-foreground transition-colors">
+                    ← Back to Sign In
+                  </button>
+                </>
+              )}
+
               {mode === "login" && (
                 <>
                   <div>
@@ -146,6 +180,9 @@ const AuthPage = () => {
                   <InputField label="Password" type="password" value={form.password} onChange={(v) => handleChange("password", v)} placeholder="••••••••" />
                   <button type="submit" disabled={submitting} className="w-full py-3 bg-primary text-primary-foreground font-display font-semibold rounded-md hover:opacity-90 transition-opacity disabled:opacity-50">
                     {submitting ? "Signing in..." : "Sign In"}
+                  </button>
+                  <button type="button" onClick={() => switchMode("forgot")} className="w-full text-sm font-display text-muted-foreground hover:text-primary transition-colors">
+                    Forgot your password?
                   </button>
                 </>
               )}
