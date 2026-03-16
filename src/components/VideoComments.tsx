@@ -45,7 +45,7 @@ const VideoComments = ({ videoId, onClose, onCountChange }: VideoCommentsProps) 
     const channel = supabase
       .channel(`comments-${videoId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "comments", filter: `video_id=eq.${videoId}` }, async (payload) => {
-        const c = payload.new as any;
+        const c = payload.new as Comment;
         const { data: profile } = await supabase.from("profiles").select("user_id, name, avatar_url").eq("user_id", c.user_id).single();
         setComments((prev) => {
           const updated = [...prev, { ...c, profile: profile || undefined }];

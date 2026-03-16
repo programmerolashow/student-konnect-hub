@@ -1,5 +1,4 @@
 import * as React from "react";
-import { type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 
@@ -14,14 +13,15 @@ const Command = React.forwardRef<
     ref={ref}
     className={cn(
       "flex h-full w-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground",
-      className,
+      className
     )}
     {...props}
   />
 ));
+
 Command.displayName = CommandPrimitive.displayName;
 
-interface CommandDialogProps extends DialogProps {}
+type CommandDialogProps = React.ComponentProps<typeof Dialog>;
 
 const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
   return (

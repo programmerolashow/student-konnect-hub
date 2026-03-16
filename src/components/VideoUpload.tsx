@@ -120,7 +120,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
       const label = contentType === "short" ? "Short" : contentType === "skit" ? "Skit" : contentType === "reel" ? "Reel" : "Video";
       toast.success(`${label} posted! 🎬`);
       onComplete();
-    } catch (error: any) {
+    } catch (error) {
       toast.error(error.message || "Upload failed.");
     } finally {
       setUploading(false);
