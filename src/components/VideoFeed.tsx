@@ -59,11 +59,14 @@ const VideoFeed = () => {
       <div className="space-y-8">
         {videos.map((video, i) => {
           const isShort = video.duration && video.duration <= 60;
+          const contentTag = video.description.match(/^\[(VIDEO|SHORT|SKIT|REEL)\]/)?.[1] || (isShort ? "SHORT" : "VIDEO");
+          const cleanDesc = video.description.replace(/^\[(VIDEO|SHORT|SKIT|REEL)\]\s*/, "");
+          const isVertical = contentTag === "SHORT" || contentTag === "REEL" || isShort;
           return (
             <motion.div key={video.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.3 }}>
               <article className="bg-card border border-border rounded-lg overflow-hidden">
-                <div className={`relative bg-ink flex items-center justify-center cursor-pointer group ${isShort ? "aspect-[9/16] max-h-[500px] mx-auto max-w-[280px]" : "aspect-video"}`}>
-                  {video.thumbnail_url && !isShort ? (
+                <div className={`relative bg-ink flex items-center justify-center cursor-pointer group ${isVertical ? "aspect-[9/16] max-h-[500px] mx-auto max-w-[280px]" : "aspect-video"}`}>
+                  {video.thumbnail_url && !isVertical ? (
                     <img src={video.thumbnail_url} alt={video.title} className="absolute inset-0 w-full h-full object-cover" />
                   ) : null}
                   <video
@@ -72,11 +75,9 @@ const VideoFeed = () => {
                     controls
                     preload="metadata"
                   />
-                  {isShort && (
-                    <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary text-primary-foreground text-[10px] font-display font-bold rounded-full">
-                      SHORT
-                    </div>
-                  )}
+                  <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary text-primary-foreground text-[10px] font-display font-bold rounded-full">
+                    {contentTag}
+                  </div>
                 </div>
                 <div className="p-4">
                   <div className="flex items-center gap-2.5 mb-3">
@@ -93,7 +94,7 @@ const VideoFeed = () => {
                     </div>
                   </div>
                   <h3 className="text-lg font-display font-semibold text-foreground mb-1">{video.title}</h3>
-                  <p className="text-sm font-body text-muted-foreground leading-relaxed">{video.description}</p>
+                  <p className="text-sm font-body text-muted-foreground leading-relaxed">{cleanDesc}</p>
                   <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border">
                     <button onClick={() => handleAcknowledge(video.id)} className={`flex items-center gap-1.5 text-sm font-display transition-colors ${acknowledgedIds.has(video.id) ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
                       {acknowledgedIds.has(video.id) ? <CheckCircle size={14} /> : <Circle size={14} />}

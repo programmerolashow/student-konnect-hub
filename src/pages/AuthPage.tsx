@@ -99,8 +99,8 @@ const AuthPage = () => {
         });
         if (error) throw error;
       }
-    } catch (error) {
-      setError(error.message || "Something went wrong.");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong.");
       setForm((prev) => ({ ...prev, password: "" }));
     } finally {
       setSubmitting(false);

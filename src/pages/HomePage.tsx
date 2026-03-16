@@ -8,6 +8,7 @@ import ConnectionsView from "@/components/ConnectionsView";
 import VideoUpload from "@/components/VideoUpload";
 import Stacks from "@/components/Stacks";
 import NotificationsPanel from "@/components/NotificationsPanel";
+import ThemeToggle from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
 import { Video, MessageCircle, User, Users, Upload, LogOut, Menu, X } from "lucide-react";
 
@@ -42,6 +43,7 @@ const HomePage = () => {
         </button>
         <h1 className="text-base font-display font-bold text-foreground">Student Konnect</h1>
         <div className="flex items-center gap-1">
+          <ThemeToggle />
           <NotificationsPanel />
           <button onClick={() => setView("profile")}>
             <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
@@ -74,9 +76,9 @@ const HomePage = () => {
         <Directory onSelectChat={handleSelectChat} activeChat={activeChatUserId} onNavChange={handleNavChange} />
       </div>
 
-      {/* Center Column - The Quad */}
+      {/* Center Column */}
       <div className="flex-1 flex flex-col min-w-0 pt-14 lg:pt-0">
-        {/* Center nav bar */}
+        {/* Nav bar */}
         <div className="border-b border-border px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-1">
             <NavTab icon={<Video size={16} />} label="Feed" active={view === "feed"} onClick={() => setView("feed")} />
@@ -85,7 +87,8 @@ const HomePage = () => {
             <NavTab icon={<Users size={16} />} label="Connect" active={view === "connections"} onClick={() => setView("connections")} />
             <NavTab icon={<User size={16} />} label="Profile" active={view === "profile"} onClick={() => setView("profile")} />
           </div>
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden lg:flex items-center gap-2">
+            <ThemeToggle />
             <NotificationsPanel />
             <button onClick={() => setView("profile")} className="flex items-center gap-1.5 text-sm font-display text-muted-foreground hover:text-foreground transition-colors">
               {profile?.avatar_url ? (
@@ -128,7 +131,7 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Right Column - The Stacks */}
+      {/* Right Column */}
       <div className="hidden xl:block w-72 flex-shrink-0">
         <Stacks context={stacksContext} />
       </div>
