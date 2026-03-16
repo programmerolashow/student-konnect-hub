@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, VideoIcon, StopCircle, X } from "lucide-react";
+import { Upload, VideoIcon, StopCircle, X, Film, Clapperboard, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -11,11 +12,21 @@ interface VideoUploadProps {
   onComplete: () => void;
 }
 
+type ContentType = "video" | "short" | "skit" | "reel";
+
+const CONTENT_TYPES: { value: ContentType; label: string; icon: React.ReactNode; desc: string }[] = [
+  { value: "video", label: "Video", icon: <VideoIcon size={14} />, desc: "Standard video post" },
+  { value: "short", label: "Short", icon: <Film size={14} />, desc: "Under 60s vertical" },
+  { value: "skit", label: "Skit", icon: <Clapperboard size={14} />, desc: "Comedy & skits" },
+  { value: "reel", label: "Reel", icon: <Sparkles size={14} />, desc: "Creative content" },
+];
+
 const VideoUpload = ({ onComplete }: VideoUploadProps) => {
   const { user } = useAuth();
   const [mode, setMode] = useState<"choose" | "upload" | "record">("choose");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [contentType, setContentType] = useState<ContentType>("video");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -27,7 +38,6 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recordStartTimeRef = useRef<number>(0);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,7 +67,6 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
         if (videoRef.current) videoRef.current.srcObject = null;
       };
       mediaRecorderRef.current = recorder;
-      recordStartTimeRef.current = Date.now();
       recorder.start();
       setRecording(true);
     } catch {
@@ -70,12 +79,15 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
     setRecording(false);
   }, []);
 
-  // Detect video duration from preview
   const handlePreviewLoadedMetadata = () => {
     if (previewVideoRef.current) {
       const dur = previewVideoRef.current.duration;
-      if (dur && dur <= 60) setIsShort(true);
-      else setIsShort(false);
+      if (dur && dur <= 60) {
+        setIsShort(true);
+        if (contentType === "video") setContentType("short");
+      } else {
+        setIsShort(false);
+      }
     }
   };
 
@@ -92,19 +104,21 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage.from("videos").getPublicUrl(path);
-
       const duration = previewVideoRef.current?.duration ? Math.round(previewVideoRef.current.duration) : null;
+
+      const descWithTag = `[${contentType.toUpperCase()}] ${description.trim()}`;
 
       const { error: insertError } = await supabase.from("videos").insert({
         user_id: user.id,
         title: title.trim(),
-        description: description.trim(),
+        description: descWithTag,
         video_url: publicUrl,
         duration,
       });
       if (insertError) throw insertError;
 
-      toast.success(isShort ? "Short posted! 🎬" : "Video posted!");
+      const label = contentType === "short" ? "Short" : contentType === "skit" ? "Skit" : contentType === "reel" ? "Reel" : "Video";
+      toast.success(`${label} posted! 🎬`);
       onComplete();
     } catch (error: any) {
       toast.error(error.message || "Upload failed.");
@@ -119,34 +133,63 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
     setVideoPreviewUrl(null);
     setTitle("");
     setDescription("");
+    setContentType("video");
     setIsShort(false);
     streamRef.current?.getTracks().forEach((t) => t.stop());
   };
 
+  const isVertical = contentType === "short" || contentType === "reel" || isShort;
+
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-        <h2 className="text-2xl font-display font-bold text-foreground mb-6 tracking-tight">Share a Video</h2>
+        <h2 className="text-2xl font-display font-bold text-foreground mb-6 tracking-tight">Share Content</h2>
 
         {mode === "choose" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors group"
-            >
-              <Upload size={32} className="mx-auto mb-3 text-muted-foreground group-hover:text-primary transition-colors" />
-              <p className="font-display font-semibold text-foreground">Upload Video</p>
-              <p className="text-xs text-muted-foreground font-body mt-1">Select a video file from your device</p>
-            </button>
-            <button
-              onClick={() => { setMode("record"); startRecording(); }}
-              className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors group"
-            >
-              <VideoIcon size={32} className="mx-auto mb-3 text-muted-foreground group-hover:text-primary transition-colors" />
-              <p className="font-display font-semibold text-foreground">Record Video</p>
-              <p className="text-xs text-muted-foreground font-body mt-1">Use your camera to record live</p>
-            </button>
-            <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleFileSelect} />
+          <div className="space-y-6">
+            {/* Content type selector */}
+            <div>
+              <label className="block text-sm font-display font-medium text-foreground mb-2">What are you posting?</label>
+              <div className="flex flex-wrap gap-2">
+                {CONTENT_TYPES.map((ct) => (
+                  <button
+                    key={ct.value}
+                    onClick={() => setContentType(ct.value)}
+                    className={`flex items-center gap-1.5 px-3 py-2 text-sm font-display rounded-lg border transition-colors ${
+                      contentType === ct.value
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border text-muted-foreground hover:border-foreground/30"
+                    }`}
+                  >
+                    {ct.icon}
+                    {ct.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground font-body mt-1.5">
+                {CONTENT_TYPES.find((c) => c.value === contentType)?.desc}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors group"
+              >
+                <Upload size={32} className="mx-auto mb-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                <p className="font-display font-semibold text-foreground">Upload File</p>
+                <p className="text-xs text-muted-foreground font-body mt-1">Select a video from your device</p>
+              </button>
+              <button
+                onClick={() => { setMode("record"); startRecording(); }}
+                className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/50 transition-colors group"
+              >
+                <VideoIcon size={32} className="mx-auto mb-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                <p className="font-display font-semibold text-foreground">Record Live</p>
+                <p className="text-xs text-muted-foreground font-body mt-1">Use your camera to record</p>
+              </button>
+              <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={handleFileSelect} />
+            </div>
           </div>
         )}
 
@@ -168,33 +211,48 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
                 </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground font-body">💡 Tip: Videos under 60 seconds will be posted as "Shorts"</p>
           </div>
         )}
 
         {videoPreviewUrl && (
           <div className="space-y-4">
-            <div className={`relative bg-ink rounded-lg overflow-hidden ${isShort ? "aspect-[9/16] max-h-[400px] max-w-[225px] mx-auto" : "aspect-video"}`}>
+            <div className={`relative bg-ink rounded-lg overflow-hidden ${isVertical ? "aspect-[9/16] max-h-[400px] max-w-[225px] mx-auto" : "aspect-video"}`}>
               <video ref={previewVideoRef} src={videoPreviewUrl} className="w-full h-full object-cover" controls onLoadedMetadata={handlePreviewLoadedMetadata} />
               <button onClick={reset} className="absolute top-3 right-3 p-1.5 bg-ink/70 rounded-full text-primary-foreground hover:bg-ink transition-colors">
                 <X size={16} />
               </button>
-              {isShort && (
-                <div className="absolute top-3 left-3 px-2 py-0.5 bg-primary text-primary-foreground text-[10px] font-display font-bold rounded-full">
-                  SHORT
-                </div>
-              )}
+              <Badge className="absolute top-3 left-3 text-[10px] font-display font-bold">
+                {contentType.toUpperCase()}
+              </Badge>
             </div>
+
+            {/* Content type pills */}
+            <div className="flex flex-wrap gap-2">
+              {CONTENT_TYPES.map((ct) => (
+                <button
+                  key={ct.value}
+                  onClick={() => setContentType(ct.value)}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-display rounded-full border transition-colors ${
+                    contentType === ct.value
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {ct.icon} {ct.label}
+                </button>
+              ))}
+            </div>
+
             <div>
               <label className="block text-sm font-display font-medium text-foreground mb-1.5">Title *</label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Give your video a title" className="font-body" />
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Give your content a title" className="font-body" />
             </div>
             <div>
               <label className="block text-sm font-display font-medium text-foreground mb-1.5">Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="What's this video about?"
+                placeholder="What's this about?"
                 rows={3}
                 className="w-full px-3 py-2.5 bg-background border border-border rounded-md text-sm font-body text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               />
@@ -202,7 +260,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
             <div className="flex gap-3">
               <Button variant="secondary" onClick={reset} className="font-display">Cancel</Button>
               <Button onClick={handleUpload} disabled={uploading || !title.trim()} className="font-display gap-2">
-                {uploading ? "Uploading..." : isShort ? "Post Short 🎬" : "Post Video"}
+                {uploading ? "Uploading..." : `Post ${contentType.charAt(0).toUpperCase() + contentType.slice(1)}`}
               </Button>
             </div>
           </div>

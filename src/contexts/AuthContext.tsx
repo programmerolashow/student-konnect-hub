@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Tables } from "@/integrations/supabase/types";
@@ -37,6 +37,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setProfile(data);
   };
 
+  const setOnlineStatus = useCallback(async (userId: string, online: boolean) => {
+    await supabase.from("profiles").update({ online }).eq("user_id", userId);
+  }, []);
+
   const refreshProfile = async () => {
     if (session?.user?.id) {
       await fetchProfile(session.user.id);
@@ -48,8 +52,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       async (_event, session) => {
         setSession(session);
         if (session?.user) {
-          // Use setTimeout to avoid deadlock with Supabase auth
-          setTimeout(() => fetchProfile(session.user.id), 0);
+          setTimeout(() => {
+            fetchProfile(session.user.id);
+            setOnlineStatus(session.user.id, true);
+          }, 0);
         } else {
           setProfile(null);
         }
@@ -61,6 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       if (session?.user) {
         fetchProfile(session.user.id);
+        setOnlineStatus(session.user.id, true);
       }
       setLoading(false);
     });
@@ -68,7 +75,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Track online/offline via browser events
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    const goOffline = () => setOnlineStatus(userId, false);
+    const goOnline = () => setOnlineStatus(userId, true);
+
+    window.addEventListener("beforeunload", goOffline);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") goOffline();
+      else goOnline();
+    });
+
+    return () => {
+      window.removeEventListener("beforeunload", goOffline);
+      goOffline();
+    };
+  }, [session?.user?.id, setOnlineStatus]);
+
   const signOut = async () => {
+    if (session?.user?.id) {
+      await setOnlineStatus(session.user.id, false);
+    }
     await supabase.auth.signOut();
     setProfile(null);
   };
