@@ -94,7 +94,7 @@ const VideoFeed = () => {
                     </div>
                   </div>
                   <h3 className="text-lg font-display font-semibold text-foreground mb-1">{video.title}</h3>
-                  <p className="text-sm font-body text-muted-foreground leading-relaxed">{video.description}</p>
+                  <p className="text-sm font-body text-muted-foreground leading-relaxed">{cleanDesc}</p>
                   <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border">
                     <button onClick={() => handleAcknowledge(video.id)} className={`flex items-center gap-1.5 text-sm font-display transition-colors ${acknowledgedIds.has(video.id) ? "text-primary" : "text-muted-foreground hover:text-primary"}`}>
                       {acknowledgedIds.has(video.id) ? <CheckCircle size={14} /> : <Circle size={14} />}
