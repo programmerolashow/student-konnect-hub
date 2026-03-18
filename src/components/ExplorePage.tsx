@@ -5,7 +5,7 @@ import { Tables } from "@/integrations/supabase/types";
 import { Search, Hash, TrendingUp, Users, Video } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import VideoPlayer from "./VideoPlayer";
 
 type VideoWithAuthor = Tables<"videos"> & { profiles: Tables<"profiles"> | null };
