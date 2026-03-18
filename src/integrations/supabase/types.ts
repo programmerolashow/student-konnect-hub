@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      blocks: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           created_at: string
@@ -70,6 +91,27 @@ export type Database = {
         }
         Relationships: []
       }
+      hashtags: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          video_count: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          video_count?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          video_count?: number
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           created_at: string
@@ -78,6 +120,7 @@ export type Database = {
           read: boolean
           receiver_id: string
           sender_id: string
+          status: string
           text: string
           voice_note_url: string | null
         }
@@ -88,6 +131,7 @@ export type Database = {
           read?: boolean
           receiver_id: string
           sender_id: string
+          status?: string
           text?: string
           voice_note_url?: string | null
         }
@@ -98,8 +142,30 @@ export type Database = {
           read?: boolean
           receiver_id?: string
           sender_id?: string
+          status?: string
           text?: string
           voice_note_url?: string | null
+        }
+        Relationships: []
+      }
+      mutes: {
+        Row: {
+          created_at: string
+          id: string
+          muted_id: string
+          muter_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          muted_id: string
+          muter_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          muted_id?: string
+          muter_id?: string
         }
         Relationships: []
       }
@@ -181,6 +247,36 @@ export type Database = {
         }
         Relationships: []
       }
+      reports: {
+        Row: {
+          created_at: string
+          id: string
+          reason: string
+          reported_user_id: string | null
+          reported_video_id: string | null
+          reporter_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          reason?: string
+          reported_user_id?: string | null
+          reported_video_id?: string | null
+          reporter_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          reason?: string
+          reported_user_id?: string | null
+          reported_video_id?: string | null
+          reporter_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
       video_acknowledges: {
         Row: {
           created_at: string
@@ -210,6 +306,68 @@ export type Database = {
           },
         ]
       }
+      video_hashtags: {
+        Row: {
+          hashtag_id: string
+          id: string
+          video_id: string
+        }
+        Insert: {
+          hashtag_id: string
+          id?: string
+          video_id: string
+        }
+        Update: {
+          hashtag_id?: string
+          id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_hashtags_hashtag_id_fkey"
+            columns: ["hashtag_id"]
+            isOneToOne: false
+            referencedRelation: "hashtags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_hashtags_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      video_views: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_views_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       videos: {
         Row: {
           acknowledges: number
@@ -223,6 +381,7 @@ export type Database = {
           updated_at: string
           user_id: string
           video_url: string
+          views_count: number
         }
         Insert: {
           acknowledges?: number
@@ -236,6 +395,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           video_url: string
+          views_count?: number
         }
         Update: {
           acknowledges?: number
@@ -249,6 +409,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           video_url?: string
+          views_count?: number
         }
         Relationships: []
       }
