@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tables } from "@/integrations/supabase/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Circle, CheckCircle } from "lucide-react";
+import { MessageSquare, Circle, CheckCircle, Play } from "lucide-react";
 import VideoComments from "./VideoComments";
+import VideoPlayer from "./VideoPlayer";
 
 type VideoWithAuthor = Tables<"videos"> & { profiles: Tables<"profiles"> | null };
+
+const PAGE_SIZE = 10;
 
 const VideoFeed = () => {
   const { user } = useAuth();
@@ -14,14 +17,20 @@ const VideoFeed = () => {
   const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [openCommentsId, setOpenCommentsId] = useState<string | null>(null);
+  const [playerOpen, setPlayerOpen] = useState<{ videos: VideoWithAuthor[]; index: number } | null>(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const observerRef = useRef<IntersectionObserver>();
 
   useEffect(() => {
     const fetchVideos = async () => {
       const { data } = await supabase
         .from("videos")
         .select("*, profiles(*)")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, PAGE_SIZE - 1);
       setVideos((data as unknown as VideoWithAuthor[]) || []);
+      setHasMore((data?.length || 0) >= PAGE_SIZE);
 
       if (user) {
         const { data: acks } = await supabase.from("video_acknowledges").select("video_id").eq("user_id", user.id);
@@ -31,6 +40,32 @@ const VideoFeed = () => {
     };
     fetchVideos();
   }, [user]);
+
+  // Infinite scroll
+  const lastVideoRef = useCallback((node: HTMLDivElement | null) => {
+    if (observerRef.current) observerRef.current.disconnect();
+    if (!hasMore || loading) return;
+    observerRef.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        supabase
+          .from("videos")
+          .select("*, profiles(*)")
+          .order("created_at", { ascending: false })
+          .range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1)
+          .then(({ data }) => {
+            if (data && data.length > 0) {
+              setVideos((prev) => [...prev, ...(data as unknown as VideoWithAuthor[])]);
+              setHasMore(data.length >= PAGE_SIZE);
+            } else {
+              setHasMore(false);
+            }
+          });
+      }
+    });
+    if (node) observerRef.current.observe(node);
+  }, [hasMore, page, loading]);
 
   const handleAcknowledge = async (videoId: string) => {
     if (!user) return;
@@ -63,18 +98,27 @@ const VideoFeed = () => {
           const cleanDesc = video.description.replace(/^\[(VIDEO|SHORT|SKIT|REEL)\]\s*/, "");
           const isVertical = contentTag === "SHORT" || contentTag === "REEL" || isShort;
           return (
-            <motion.div key={video.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05, duration: 0.3 }}>
+            <motion.div
+              key={video.id}
+              ref={i === videos.length - 1 ? lastVideoRef : undefined}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(i * 0.05, 0.3), duration: 0.3 }}
+            >
               <article className="bg-card border border-border rounded-lg overflow-hidden">
-                <div className={`relative bg-ink flex items-center justify-center cursor-pointer group ${isVertical ? "aspect-[9/16] max-h-[500px] mx-auto max-w-[280px]" : "aspect-video"}`}>
+                <div
+                  className={`relative bg-ink flex items-center justify-center cursor-pointer group ${isVertical ? "aspect-[9/16] max-h-[500px] mx-auto max-w-[280px]" : "aspect-video"}`}
+                  onClick={() => setPlayerOpen({ videos, index: i })}
+                >
                   {video.thumbnail_url && !isVertical ? (
                     <img src={video.thumbnail_url} alt={video.title} className="absolute inset-0 w-full h-full object-cover" />
                   ) : null}
-                  <video
-                    src={video.video_url}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    controls
-                    preload="metadata"
-                  />
+                  <video src={video.video_url} className="absolute inset-0 w-full h-full object-cover" preload="metadata" />
+                  <div className="absolute inset-0 bg-ink/0 group-hover:bg-ink/20 transition-colors flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-background/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Play size={24} className="text-primary-foreground ml-1" />
+                    </div>
+                  </div>
                   <div className="absolute top-2 left-2 px-2 py-0.5 bg-primary text-primary-foreground text-[10px] font-display font-bold rounded-full">
                     {contentTag}
                   </div>
@@ -100,10 +144,7 @@ const VideoFeed = () => {
                       {acknowledgedIds.has(video.id) ? <CheckCircle size={14} /> : <Circle size={14} />}
                       <span>{video.acknowledges} Acknowledge{video.acknowledges !== 1 ? "s" : ""}</span>
                     </button>
-                    <button
-                      onClick={() => setOpenCommentsId(openCommentsId === video.id ? null : video.id)}
-                      className={`flex items-center gap-1.5 text-sm font-display transition-colors ${openCommentsId === video.id ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                    >
+                    <button onClick={() => setOpenCommentsId(openCommentsId === video.id ? null : video.id)} className={`flex items-center gap-1.5 text-sm font-display transition-colors ${openCommentsId === video.id ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
                       <MessageSquare size={14} />
                       <span>{video.comments_count} comments</span>
                     </button>
@@ -111,11 +152,7 @@ const VideoFeed = () => {
                 </div>
                 <AnimatePresence>
                   {openCommentsId === video.id && (
-                    <VideoComments
-                      videoId={video.id}
-                      onClose={() => setOpenCommentsId(null)}
-                      onCountChange={(count) => setVideos((prev) => prev.map((v) => v.id === video.id ? { ...v, comments_count: count } : v))}
-                    />
+                    <VideoComments videoId={video.id} onClose={() => setOpenCommentsId(null)} onCountChange={(count) => setVideos((prev) => prev.map((v) => v.id === video.id ? { ...v, comments_count: count } : v))} />
                   )}
                 </AnimatePresence>
               </article>
@@ -123,6 +160,14 @@ const VideoFeed = () => {
           );
         })}
       </div>
+      {!hasMore && videos.length > 0 && <p className="text-center text-xs text-muted-foreground font-display py-6">You've reached the end!</p>}
+
+      {/* Full-screen player */}
+      <AnimatePresence>
+        {playerOpen && (
+          <VideoPlayer videos={playerOpen.videos} startIndex={playerOpen.index} onClose={() => setPlayerOpen(null)} />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

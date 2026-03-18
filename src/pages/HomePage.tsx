@@ -6,13 +6,14 @@ import MessagingView from "@/components/MessagingView";
 import ProfileView from "@/components/ProfileView";
 import ConnectionsView from "@/components/ConnectionsView";
 import VideoUpload from "@/components/VideoUpload";
+import ExplorePage from "@/components/ExplorePage";
 import Stacks from "@/components/Stacks";
 import NotificationsPanel from "@/components/NotificationsPanel";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
-import { Video, MessageCircle, User, Users, Upload, LogOut, Menu, X } from "lucide-react";
+import { Video, MessageCircle, User, Users, Upload, LogOut, Menu, X, Compass, Search } from "lucide-react";
 
-type View = "feed" | "messages" | "connections" | "profile" | "upload";
+type View = "feed" | "messages" | "connections" | "profile" | "upload" | "explore";
 
 const HomePage = () => {
   const [view, setView] = useState<View>("feed");
@@ -56,13 +57,7 @@ const HomePage = () => {
       {/* Mobile menu overlay */}
       <AnimatePresence>
         {mobileMenuOpen && (
-          <motion.div
-            initial={{ x: "-100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "-100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="lg:hidden fixed inset-0 z-40 pt-14"
-          >
+          <motion.div initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }} className="lg:hidden fixed inset-0 z-40 pt-14">
             <div className="h-full w-72 bg-background">
               <Directory onSelectChat={handleSelectChat} activeChat={activeChatUserId} onNavChange={handleNavChange} />
             </div>
@@ -71,17 +66,17 @@ const HomePage = () => {
         )}
       </AnimatePresence>
 
-      {/* Desktop: Left Column - Directory */}
+      {/* Desktop: Left Column */}
       <div className="hidden lg:block w-60 flex-shrink-0">
         <Directory onSelectChat={handleSelectChat} activeChat={activeChatUserId} onNavChange={handleNavChange} />
       </div>
 
       {/* Center Column */}
       <div className="flex-1 flex flex-col min-w-0 pt-14 lg:pt-0">
-        {/* Nav bar */}
         <div className="border-b border-border px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 overflow-x-auto">
             <NavTab icon={<Video size={16} />} label="Feed" active={view === "feed"} onClick={() => setView("feed")} />
+            <NavTab icon={<Compass size={16} />} label="Explore" active={view === "explore"} onClick={() => setView("explore")} />
             <NavTab icon={<Upload size={16} />} label="Upload" active={view === "upload"} onClick={() => setView("upload")} />
             <NavTab icon={<MessageCircle size={16} />} label="Messages" active={view === "messages"} onClick={() => { setView("messages"); setActiveChatUserId(undefined); }} />
             <NavTab icon={<Users size={16} />} label="Connect" active={view === "connections"} onClick={() => setView("connections")} />
@@ -94,34 +89,19 @@ const HomePage = () => {
               {profile?.avatar_url ? (
                 <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
               ) : (
-                <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">
-                  {displayName.charAt(0)}
-                </div>
+                <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-xs font-display font-semibold text-secondary-foreground">{displayName.charAt(0)}</div>
               )}
               <span className="text-sm">{displayName.split(" ")[0]}</span>
             </button>
-            <button
-              onClick={signOut}
-              className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-              title="Sign out"
-            >
-              <LogOut size={16} />
-            </button>
+            <button onClick={signOut} className="p-1.5 text-muted-foreground hover:text-foreground transition-colors" title="Sign out"><LogOut size={16} /></button>
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={view}
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.25 }}
-              className="h-full"
-            >
+            <motion.div key={view} initial={{ opacity: 0, x: 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -40 }} transition={{ duration: 0.25 }} className="h-full">
               {view === "feed" && <VideoFeed />}
+              {view === "explore" && <ExplorePage />}
               {view === "upload" && <VideoUpload onComplete={() => setView("feed")} />}
               {view === "messages" && <MessagingView activeChatUserId={activeChatUserId} onBack={() => setActiveChatUserId(undefined)} />}
               {view === "connections" && <ConnectionsView />}
@@ -139,23 +119,8 @@ const HomePage = () => {
   );
 };
 
-const NavTab = ({
-  icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center gap-1.5 px-3 py-2 text-sm font-display font-medium rounded-md transition-colors ${
-      active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-    }`}
-  >
+const NavTab = ({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void }) => (
+  <button onClick={onClick} className={`flex items-center gap-1.5 px-3 py-2 text-sm font-display font-medium rounded-md transition-colors whitespace-nowrap ${active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent/50"}`}>
     {icon}
     {label}
   </button>
