@@ -104,7 +104,7 @@ const HomePage = () => {
               {view === "explore" && <ExplorePage />}
               {view === "upload" && <VideoUpload onComplete={() => setView("feed")} />}
               {view === "messages" && <MessagingView activeChatUserId={activeChatUserId} onBack={() => setActiveChatUserId(undefined)} />}
-              {view === "connections" && <ConnectionsView />}
+              {view === "connections" && <ConnectionsView onMessageUser={handleSelectChat} />}
               {view === "profile" && <ProfileView />}
             </motion.div>
           </AnimatePresence>

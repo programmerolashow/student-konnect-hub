@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tables } from "@/integrations/supabase/types";
-import { Search, UserPlus, UserCheck, X, Clock } from "lucide-react";
+import { Search, UserPlus, UserCheck, X, Clock, MessageCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,11 @@ interface ConnectionMap {
   [userId: string]: { status: ConnectionStatus; connectionId: string };
 }
 
-const ConnectionsView = () => {
+interface ConnectionsViewProps {
+  onMessageUser?: (userId: string) => void;
+}
+
+const ConnectionsView = ({ onMessageUser }: ConnectionsViewProps) => {
   const { user } = useAuth();
   const [profiles, setProfiles] = useState<Tables<"profiles">[]>([]);
   const [connectionMap, setConnectionMap] = useState<ConnectionMap>({});
@@ -64,14 +68,11 @@ const ConnectionsView = () => {
 
   const filtered = useMemo(() => {
     let result = profiles;
-
-    // Tab filtering
     if (tab === "connected") {
       result = result.filter((p) => connectionMap[p.user_id]?.status === "accepted");
     } else if (tab === "pending") {
       result = result.filter((p) => connectionMap[p.user_id]?.status === "pending_sent" || connectionMap[p.user_id]?.status === "pending_received");
     }
-
     if (search) {
       const q = search.toLowerCase();
       result = result.filter((u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q) || u.department.toLowerCase().includes(q) || u.school.toLowerCase().includes(q));
@@ -87,7 +88,6 @@ const ConnectionsView = () => {
     const { data, error } = await supabase.from("connections").insert({ requester_id: user.id, addressee_id: profileUserId, status: "pending" }).select().single();
     if (error) { toast.error("Failed to send request."); return; }
     setConnectionMap((prev) => ({ ...prev, [profileUserId]: { status: "pending_sent", connectionId: data.id } }));
-    // Create notification
     await supabase.from("notifications").insert({ user_id: profileUserId, type: "connection_request", title: "New Connection Request", body: "Someone wants to connect with you!" });
     toast.success("Connection request sent!");
   };
@@ -112,7 +112,6 @@ const ConnectionsView = () => {
 
   const clearFilters = () => { setFilterType("all"); setSelectedDepartment(null); setSelectedFaculty(null); setSelectedSchool(null); setSearch(""); };
   const hasActiveFilter = filterType !== "all" || search.length > 0;
-
   const pendingCount = Object.values(connectionMap).filter((c) => c.status === "pending_received").length;
 
   if (loading) return <div className="flex items-center justify-center h-full"><p className="text-muted-foreground font-display">Loading...</p></div>;
@@ -129,7 +128,6 @@ const ConnectionsView = () => {
           )}
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-1 bg-accent rounded-md p-1">
           <button onClick={() => setTab("discover")} className={`flex-1 py-1.5 text-xs font-display font-medium rounded transition-colors ${tab === "discover" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>Discover</button>
           <button onClick={() => setTab("pending")} className={`flex-1 py-1.5 text-xs font-display font-medium rounded transition-colors relative ${tab === "pending" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
@@ -181,26 +179,33 @@ const ConnectionsView = () => {
                           <p className="font-display font-semibold text-sm text-foreground truncate">{p.name}</p>
                           <p className="text-xs text-muted-foreground font-body">@{p.username}</p>
                         </div>
-                        {connStatus === "none" && (
-                          <Button size="sm" className="flex-shrink-0 text-xs font-display h-8 gap-1" onClick={() => sendRequest(p.user_id)}>
-                            <UserPlus size={14} /> Connect
-                          </Button>
-                        )}
-                        {connStatus === "pending_sent" && (
-                          <Button size="sm" variant="secondary" className="flex-shrink-0 text-xs font-display h-8 gap-1" onClick={() => removeConnection(p.user_id)}>
-                            <Clock size={14} /> Pending
-                          </Button>
-                        )}
-                        {connStatus === "pending_received" && (
-                          <Button size="sm" className="flex-shrink-0 text-xs font-display h-8 gap-1" onClick={() => acceptRequest(p.user_id)}>
-                            <UserCheck size={14} /> Accept
-                          </Button>
-                        )}
-                        {connStatus === "accepted" && (
-                          <Button size="sm" variant="secondary" className="flex-shrink-0 text-xs font-display h-8 gap-1" onClick={() => removeConnection(p.user_id)}>
-                            <UserCheck size={14} /> Connected
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {connStatus === "accepted" && onMessageUser && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => onMessageUser(p.user_id)} title="Message">
+                              <MessageCircle size={14} />
+                            </Button>
+                          )}
+                          {connStatus === "none" && (
+                            <Button size="sm" className="text-xs font-display h-8 gap-1" onClick={() => sendRequest(p.user_id)}>
+                              <UserPlus size={14} /> Connect
+                            </Button>
+                          )}
+                          {connStatus === "pending_sent" && (
+                            <Button size="sm" variant="secondary" className="text-xs font-display h-8 gap-1" onClick={() => removeConnection(p.user_id)}>
+                              <Clock size={14} /> Pending
+                            </Button>
+                          )}
+                          {connStatus === "pending_received" && (
+                            <Button size="sm" className="text-xs font-display h-8 gap-1" onClick={() => acceptRequest(p.user_id)}>
+                              <UserCheck size={14} /> Accept
+                            </Button>
+                          )}
+                          {connStatus === "accepted" && (
+                            <Button size="sm" variant="secondary" className="text-xs font-display h-8 gap-1" onClick={() => removeConnection(p.user_id)}>
+                              <UserCheck size={14} /> Connected
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs font-body text-muted-foreground mt-1.5 line-clamp-1">{p.bio}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
