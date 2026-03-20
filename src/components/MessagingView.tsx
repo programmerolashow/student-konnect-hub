@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tables } from "@/integrations/supabase/types";
-import { Send, Mic, Image, ArrowLeft, Check, CheckCheck, Eye } from "lucide-react";
+import { Send, Mic, MicOff, Image, ArrowLeft, Check, CheckCheck, Eye, Play, Pause, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -25,6 +25,13 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Voice note state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingIntervalRef = useRef<NodeJS.Timeout>();
 
   // Fetch chat partners
   useEffect(() => {
@@ -64,19 +71,19 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
         .or(`and(sender_id.eq.${user.id},receiver_id.eq.${selectedPartner.user_id}),and(sender_id.eq.${selectedPartner.user_id},receiver_id.eq.${user.id})`)
         .order("created_at", { ascending: true });
       setMessages(data || []);
-      // Mark as read + update status to 'seen'
       await supabase.from("messages").update({ read: true, status: "seen" } as any).eq("sender_id", selectedPartner.user_id).eq("receiver_id", user.id).eq("read", false);
     };
     fetchMessages();
 
-    // Realtime messages
     const channel = supabase
       .channel(`messages-${selectedPartner.user_id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const msg = payload.new as MessageRow;
         if ((msg.sender_id === user.id && msg.receiver_id === selectedPartner.user_id) || (msg.sender_id === selectedPartner.user_id && msg.receiver_id === user.id)) {
-          setMessages((prev) => [...prev, msg]);
-          // Auto-mark as seen
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
           if (msg.sender_id === selectedPartner.user_id) {
             supabase.from("messages").update({ read: true, status: "seen" } as any).eq("id", msg.id);
           }
@@ -88,7 +95,6 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
       })
       .subscribe();
 
-    // Typing presence
     const presenceChannel = supabase.channel(`typing-${[user.id, selectedPartner.user_id].sort().join("-")}`, { config: { presence: { key: user.id } } });
     presenceChannel
       .on("presence", { event: "sync" }, () => {
@@ -124,17 +130,33 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
 
   const handleSend = async () => {
     if (!newMessage.trim() || !selectedPartner || !user) return;
+    const text = newMessage.trim();
+    setNewMessage("");
+
+    // Optimistic insert
+    const optimisticMsg: MessageRow = {
+      id: crypto.randomUUID(),
+      sender_id: user.id,
+      receiver_id: selectedPartner.user_id,
+      text,
+      image_url: null,
+      voice_note_url: null,
+      read: false,
+      status: "sent",
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+    inputRef.current?.focus();
+
+    const channelName = `typing-${[user.id, selectedPartner.user_id].sort().join("-")}`;
+    supabase.channel(channelName).track({ typing: false });
+
     await supabase.from("messages").insert({
       sender_id: user.id,
       receiver_id: selectedPartner.user_id,
-      text: newMessage.trim(),
+      text,
       status: "sent",
     } as any);
-    setNewMessage("");
-    inputRef.current?.focus();
-    // Stop typing
-    const channelName = `typing-${[user.id, selectedPartner.user_id].sort().join("-")}`;
-    supabase.channel(channelName).track({ typing: false });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,6 +167,20 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
     const { error } = await supabase.storage.from("chat-media").upload(path, file);
     if (error) { toast.error("Failed to upload."); return; }
     const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(path);
+
+    const optimisticMsg: MessageRow = {
+      id: crypto.randomUUID(),
+      sender_id: user.id,
+      receiver_id: selectedPartner.user_id,
+      text: "",
+      image_url: publicUrl,
+      voice_note_url: null,
+      read: false,
+      status: "sent",
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
     await supabase.from("messages").insert({
       sender_id: user.id,
       receiver_id: selectedPartner.user_id,
@@ -154,6 +190,73 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
     } as any);
   };
 
+  // Voice recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      setRecordingDuration(0);
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (blob.size === 0) return;
+
+        if (!user || !selectedPartner) return;
+        const path = `${user.id}/${Date.now()}.webm`;
+        const { error } = await supabase.storage.from("chat-media").upload(path, blob);
+        if (error) { toast.error("Failed to upload voice note."); return; }
+        const { data: { publicUrl } } = supabase.storage.from("chat-media").getPublicUrl(path);
+
+        const optimisticMsg: MessageRow = {
+          id: crypto.randomUUID(),
+          sender_id: user.id,
+          receiver_id: selectedPartner.user_id,
+          text: "",
+          image_url: null,
+          voice_note_url: publicUrl,
+          read: false,
+          status: "sent",
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, optimisticMsg]);
+
+        await supabase.from("messages").insert({
+          sender_id: user.id,
+          receiver_id: selectedPartner.user_id,
+          text: "",
+          voice_note_url: publicUrl,
+          status: "sent",
+        } as any);
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingDuration((d) => d + 1);
+      }, 1000);
+    } catch {
+      toast.error("Microphone access denied.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    setRecordingDuration(0);
+    if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
+  };
+
   const getStatusIcon = (msg: MessageRow) => {
     if (msg.sender_id !== user?.id) return null;
     const status = (msg as any).status || "sent";
@@ -161,6 +264,8 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
     if (status === "delivered") return <CheckCheck size={12} className="text-muted-foreground" />;
     return <Check size={12} className="text-muted-foreground" />;
   };
+
+  const formatDuration = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
 
   if (!selectedPartner) {
     return (
@@ -226,6 +331,9 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
                 {msg.image_url && (
                   <img src={msg.image_url} alt="" className="max-w-full rounded-lg mb-1 max-h-48 object-cover" />
                 )}
+                {msg.voice_note_url && (
+                  <VoiceNotePlayer url={msg.voice_note_url} isMe={isMe} />
+                )}
                 {msg.text && (
                   <div className={`inline-block px-3 py-2 rounded-lg text-sm font-body ${isMe ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"}`}>
                     {msg.text}
@@ -245,21 +353,81 @@ const MessagingView = ({ activeChatUserId, onBack }: MessagingViewProps) => {
       </div>
 
       <div className="p-3 border-t border-border">
-        <div className="flex items-center gap-2">
-          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-muted-foreground hover:text-foreground transition-colors" title="Upload image"><Image size={18} /></button>
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleImageUpload} />
-          <input
-            ref={inputRef}
-            type="text"
-            value={newMessage}
-            onChange={(e) => { setNewMessage(e.target.value); handleTyping(); }}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Type a message..."
-            className="flex-1 px-3 py-2 bg-accent border-none rounded-md text-sm font-display text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <button onClick={handleSend} disabled={!newMessage.trim()} className="p-2 text-primary hover:opacity-80 disabled:opacity-30 transition-opacity"><Send size={18} /></button>
+        {isRecording ? (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+              <span className="text-sm font-display text-destructive font-medium">Recording {formatDuration(recordingDuration)}</span>
+            </div>
+            <button onClick={stopRecording} className="p-2 bg-destructive text-destructive-foreground rounded-full hover:opacity-90 transition-opacity">
+              <MicOff size={18} />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button onClick={() => fileInputRef.current?.click()} className="p-2 text-muted-foreground hover:text-foreground transition-colors" title="Upload image"><Image size={18} /></button>
+            <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleImageUpload} />
+            <button onClick={startRecording} className="p-2 text-muted-foreground hover:text-foreground transition-colors" title="Voice note"><Mic size={18} /></button>
+            <input
+              ref={inputRef}
+              type="text"
+              value={newMessage}
+              onChange={(e) => { setNewMessage(e.target.value); handleTyping(); }}
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              placeholder="Type a message..."
+              className="flex-1 px-3 py-2 bg-accent border-none rounded-md text-sm font-display text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button onClick={handleSend} disabled={!newMessage.trim()} className="p-2 text-primary hover:opacity-80 disabled:opacity-30 transition-opacity"><Send size={18} /></button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Voice note playback component
+const VoiceNotePlayer = ({ url, isMe }: { url: string; isMe: boolean }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const onTime = () => setCurrentTime(audio.currentTime);
+    const onMeta = () => setDuration(audio.duration);
+    const onEnd = () => setPlaying(false);
+    audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("loadedmetadata", onMeta);
+    audio.addEventListener("ended", onEnd);
+    return () => {
+      audio.removeEventListener("timeupdate", onTime);
+      audio.removeEventListener("loadedmetadata", onMeta);
+      audio.removeEventListener("ended", onEnd);
+    };
+  }, []);
+
+  const toggle = () => {
+    if (!audioRef.current) return;
+    if (playing) { audioRef.current.pause(); setPlaying(false); }
+    else { audioRef.current.play(); setPlaying(true); }
+  };
+
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, "0")}`;
+
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg mb-1 ${isMe ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"}`}>
+      <audio ref={audioRef} src={url} preload="metadata" />
+      <button onClick={toggle} className="flex-shrink-0">
+        {playing ? <Pause size={16} /> : <Play size={16} />}
+      </button>
+      <div className="flex-1 min-w-[80px]">
+        <div className="h-1 bg-current/20 rounded-full overflow-hidden">
+          <div className="h-full bg-current rounded-full transition-all" style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }} />
         </div>
       </div>
+      <span className="text-[10px] font-display tabular-nums">{fmt(playing ? currentTime : duration || 0)}</span>
     </div>
   );
 };

@@ -3,9 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tables } from "@/integrations/supabase/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquare, Circle, CheckCircle, Play } from "lucide-react";
+import { MessageSquare, Circle, CheckCircle, Play, Trash2 } from "lucide-react";
 import VideoComments from "./VideoComments";
 import VideoPlayer from "./VideoPlayer";
+import { toast } from "sonner";
 
 type VideoWithAuthor = Tables<"videos"> & { profiles: Tables<"profiles"> | null };
 
@@ -41,7 +42,6 @@ const VideoFeed = () => {
     fetchVideos();
   }, [user]);
 
-  // Infinite scroll
   const lastVideoRef = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) observerRef.current.disconnect();
     if (!hasMore || loading) return;
@@ -80,6 +80,16 @@ const VideoFeed = () => {
     }
   };
 
+  const handleDeleteVideo = async (videoId: string) => {
+    if (!user) return;
+    const confirmed = window.confirm("Are you sure you want to delete this video?");
+    if (!confirmed) return;
+    const { error } = await supabase.from("videos").delete().eq("id", videoId).eq("user_id", user.id);
+    if (error) { toast.error("Failed to delete video."); return; }
+    setVideos((prev) => prev.filter((v) => v.id !== videoId));
+    toast.success("Video deleted.");
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><p className="text-muted-foreground font-display">Loading feed...</p></div>;
 
   return (
@@ -97,6 +107,7 @@ const VideoFeed = () => {
           const contentTag = video.description.match(/^\[(VIDEO|SHORT|SKIT|REEL)\]/)?.[1] || (isShort ? "SHORT" : "VIDEO");
           const cleanDesc = video.description.replace(/^\[(VIDEO|SHORT|SKIT|REEL)\]\s*/, "");
           const isVertical = contentTag === "SHORT" || contentTag === "REEL" || isShort;
+          const isOwner = user?.id === video.user_id;
           return (
             <motion.div
               key={video.id}
@@ -132,10 +143,15 @@ const VideoFeed = () => {
                         {video.profiles?.name?.charAt(0) || "?"}
                       </div>
                     )}
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-display font-medium text-foreground">{video.profiles?.name}</p>
                       <p className="text-xs text-muted-foreground font-display">{video.profiles?.department} · {getTimeAgo(video.created_at)}</p>
                     </div>
+                    {isOwner && (
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteVideo(video.id); }} className="p-1.5 text-muted-foreground hover:text-destructive transition-colors" title="Delete video">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                   <h3 className="text-lg font-display font-semibold text-foreground mb-1">{video.title}</h3>
                   <p className="text-sm font-body text-muted-foreground leading-relaxed">{cleanDesc}</p>
@@ -162,7 +178,6 @@ const VideoFeed = () => {
       </div>
       {!hasMore && videos.length > 0 && <p className="text-center text-xs text-muted-foreground font-display py-6">You've reached the end!</p>}
 
-      {/* Full-screen player */}
       <AnimatePresence>
         {playerOpen && (
           <VideoPlayer videos={playerOpen.videos} startIndex={playerOpen.index} onClose={() => setPlayerOpen(null)} />
