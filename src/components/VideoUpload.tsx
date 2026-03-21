@@ -118,7 +118,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
       if (hashtags.length > 0 && video) {
         for (const tag of hashtags) {
           // Upsert hashtag
-          let { data: existing } = await supabase.from("hashtags").select("id").eq("name", tag).single();
+          const { data: existing } = await supabase.from("hashtags").select("id").eq("name", tag).single();
           let hashtagId: string;
           if (existing) {
             hashtagId = existing.id;
