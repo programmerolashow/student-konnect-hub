@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import FollowButton from "./FollowButton";
 
 type FilterType = "all" | "department" | "faculty" | "school";
 type ConnectionStatus = "none" | "pending_sent" | "pending_received" | "accepted";
@@ -38,22 +39,12 @@ const ConnectionsView = ({ onMessageUser }: ConnectionsViewProps) => {
       setProfiles(profilesData || []);
 
       if (user) {
-        const { data: connections } = await supabase
-          .from("connections")
-          .select("*")
-          .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
-        
+        const { data: connections } = await supabase.from("connections").select("*").or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
         const map: ConnectionMap = {};
         connections?.forEach((c) => {
           const otherId = c.requester_id === user.id ? c.addressee_id : c.requester_id;
-          if (c.status === "accepted") {
-            map[otherId] = { status: "accepted", connectionId: c.id };
-          } else if (c.status === "pending") {
-            map[otherId] = {
-              status: c.requester_id === user.id ? "pending_sent" : "pending_received",
-              connectionId: c.id,
-            };
-          }
+          if (c.status === "accepted") map[otherId] = { status: "accepted", connectionId: c.id };
+          else if (c.status === "pending") map[otherId] = { status: c.requester_id === user.id ? "pending_sent" : "pending_received", connectionId: c.id };
         });
         setConnectionMap(map);
       }
@@ -68,11 +59,8 @@ const ConnectionsView = ({ onMessageUser }: ConnectionsViewProps) => {
 
   const filtered = useMemo(() => {
     let result = profiles;
-    if (tab === "connected") {
-      result = result.filter((p) => connectionMap[p.user_id]?.status === "accepted");
-    } else if (tab === "pending") {
-      result = result.filter((p) => connectionMap[p.user_id]?.status === "pending_sent" || connectionMap[p.user_id]?.status === "pending_received");
-    }
+    if (tab === "connected") result = result.filter((p) => connectionMap[p.user_id]?.status === "accepted");
+    else if (tab === "pending") result = result.filter((p) => connectionMap[p.user_id]?.status === "pending_sent" || connectionMap[p.user_id]?.status === "pending_received");
     if (search) {
       const q = search.toLowerCase();
       result = result.filter((u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q) || u.department.toLowerCase().includes(q) || u.school.toLowerCase().includes(q));
@@ -127,7 +115,6 @@ const ConnectionsView = ({ onMessageUser }: ConnectionsViewProps) => {
             </button>
           )}
         </div>
-
         <div className="flex gap-1 bg-accent rounded-md p-1">
           <button onClick={() => setTab("discover")} className={`flex-1 py-1.5 text-xs font-display font-medium rounded transition-colors ${tab === "discover" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>Discover</button>
           <button onClick={() => setTab("pending")} className={`flex-1 py-1.5 text-xs font-display font-medium rounded transition-colors relative ${tab === "pending" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>
@@ -135,7 +122,6 @@ const ConnectionsView = ({ onMessageUser }: ConnectionsViewProps) => {
           </button>
           <button onClick={() => setTab("connected")} className={`flex-1 py-1.5 text-xs font-display font-medium rounded transition-colors ${tab === "connected" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}>Connected</button>
         </div>
-
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, username, department..." className="pl-9 font-body text-sm bg-muted/50 border-border" />
@@ -206,6 +192,9 @@ const ConnectionsView = ({ onMessageUser }: ConnectionsViewProps) => {
                             </Button>
                           )}
                         </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <FollowButton targetUserId={p.user_id} targetName={p.name} />
                       </div>
                       <p className="text-xs font-body text-muted-foreground mt-1.5 line-clamp-1">{p.bio}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
