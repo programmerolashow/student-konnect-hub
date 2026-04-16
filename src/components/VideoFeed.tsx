@@ -21,15 +21,41 @@ const VideoFeed = () => {
   const [playerOpen, setPlayerOpen] = useState<{ videos: VideoWithAuthor[]; index: number } | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [feedMode, setFeedMode] = useState<"foryou" | "following">("foryou");
+  const [followingIds, setFollowingIds] = useState<string[]>([]);
   const observerRef = useRef<IntersectionObserver>();
 
+  // Fetch who user follows
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("followers").select("following_id").eq("follower_id", user.id).then(({ data }) => {
+      setFollowingIds(data?.map((f) => f.following_id) || []);
+    });
+  }, [user]);
+
+  // Fetch videos based on feed mode
   useEffect(() => {
     const fetchVideos = async () => {
-      const { data } = await supabase
+      setLoading(true);
+      setPage(0);
+      setHasMore(true);
+
+      let query = supabase
         .from("videos")
         .select("*, profiles(*)")
         .order("created_at", { ascending: false })
         .range(0, PAGE_SIZE - 1);
+
+      if (feedMode === "following" && followingIds.length > 0) {
+        query = query.in("user_id", followingIds);
+      } else if (feedMode === "following" && followingIds.length === 0) {
+        setVideos([]);
+        setHasMore(false);
+        setLoading(false);
+        return;
+      }
+
+      const { data } = await query;
       setVideos((data as unknown as VideoWithAuthor[]) || []);
       setHasMore((data?.length || 0) >= PAGE_SIZE);
 
@@ -40,7 +66,7 @@ const VideoFeed = () => {
       setLoading(false);
     };
     fetchVideos();
-  }, [user]);
+  }, [user, feedMode, followingIds]);
 
   const lastVideoRef = useCallback((node: HTMLDivElement | null) => {
     if (observerRef.current) observerRef.current.disconnect();
@@ -49,23 +75,28 @@ const VideoFeed = () => {
       if (entries[0].isIntersecting) {
         const nextPage = page + 1;
         setPage(nextPage);
-        supabase
+        let query = supabase
           .from("videos")
           .select("*, profiles(*)")
           .order("created_at", { ascending: false })
-          .range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1)
-          .then(({ data }) => {
-            if (data && data.length > 0) {
-              setVideos((prev) => [...prev, ...(data as unknown as VideoWithAuthor[])]);
-              setHasMore(data.length >= PAGE_SIZE);
-            } else {
-              setHasMore(false);
-            }
-          });
+          .range(nextPage * PAGE_SIZE, (nextPage + 1) * PAGE_SIZE - 1);
+
+        if (feedMode === "following" && followingIds.length > 0) {
+          query = query.in("user_id", followingIds);
+        }
+
+        query.then(({ data }) => {
+          if (data && data.length > 0) {
+            setVideos((prev) => [...prev, ...(data as unknown as VideoWithAuthor[])]);
+            setHasMore(data.length >= PAGE_SIZE);
+          } else {
+            setHasMore(false);
+          }
+        });
       }
     });
     if (node) observerRef.current.observe(node);
-  }, [hasMore, page, loading]);
+  }, [hasMore, page, loading, feedMode, followingIds]);
 
   const handleAcknowledge = async (videoId: string) => {
     if (!user) return;
@@ -94,11 +125,34 @@ const VideoFeed = () => {
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
-      <h2 className="text-2xl font-display font-bold text-foreground mb-6 tracking-tight">The Quad</h2>
+      <h2 className="text-2xl font-display font-bold text-foreground mb-4 tracking-tight">The Quad</h2>
+
+      {/* Feed mode toggle */}
+      <div className="flex gap-1 bg-accent rounded-md p-1 mb-6">
+        <button
+          onClick={() => setFeedMode("foryou")}
+          className={`flex-1 py-2 text-xs font-display font-medium rounded transition-colors ${feedMode === "foryou" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+        >
+          For You
+        </button>
+        <button
+          onClick={() => setFeedMode("following")}
+          className={`flex-1 py-2 text-xs font-display font-medium rounded transition-colors ${feedMode === "following" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+        >
+          Following
+        </button>
+      </div>
+
       {videos.length === 0 && (
         <div className="text-center py-16">
-          <p className="text-muted-foreground font-body text-sm">No videos yet. Be the first to share something!</p>
-          <p className="text-xs text-muted-foreground font-display mt-2">Click "Upload" in the nav to post a video.</p>
+          <p className="text-muted-foreground font-body text-sm">
+            {feedMode === "following"
+              ? "No videos from people you follow yet. Follow more creators!"
+              : "No videos yet. Be the first to share something!"}
+          </p>
+          {feedMode === "foryou" && (
+            <p className="text-xs text-muted-foreground font-display mt-2">Click "Upload" in the nav to post a video.</p>
+          )}
         </div>
       )}
       <div className="space-y-8">
