@@ -1,12 +1,13 @@
 import { useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Upload, VideoIcon, StopCircle, X, Film, Clapperboard, Sparkles, Hash } from "lucide-react";
+import { Upload, VideoIcon, StopCircle, X, Film, Clapperboard, Sparkles, Hash, Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import VideoEditor, { VideoEdits } from "./VideoEditor";
 
 interface VideoUploadProps {
   onComplete: () => void;
@@ -23,7 +24,7 @@ const CONTENT_TYPES: { value: ContentType; label: string; icon: React.ReactNode;
 
 const VideoUpload = ({ onComplete }: VideoUploadProps) => {
   const { user } = useAuth();
-  const [mode, setMode] = useState<"choose" | "upload" | "record">("choose");
+  const [mode, setMode] = useState<"choose" | "upload" | "record" | "edit">("choose");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [contentType, setContentType] = useState<ContentType>("video");
@@ -34,6 +35,8 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [isShort, setIsShort] = useState(false);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [edits, setEdits] = useState<VideoEdits | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -64,6 +67,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
         setVideoPreviewUrl(URL.createObjectURL(blob));
         stream.getTracks().forEach((t) => t.stop());
         if (videoRef.current) videoRef.current.srcObject = null;
+        setMode("upload");
       };
       mediaRecorderRef.current = recorder;
       recorder.start();
@@ -78,6 +82,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
   const handlePreviewLoadedMetadata = () => {
     if (previewVideoRef.current) {
       const dur = previewVideoRef.current.duration;
+      setVideoDuration(dur || 0);
       if (dur && dur <= 60) { setIsShort(true); if (contentType === "video") setContentType("short"); }
       else setIsShort(false);
     }
@@ -105,10 +110,16 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
       const duration = previewVideoRef.current?.duration ? Math.round(previewVideoRef.current.duration) : null;
       const descWithTag = `[${contentType.toUpperCase()}] ${description.trim()}`;
 
+      // Include edit metadata in description if edits were applied
+      let fullDesc = descWithTag;
+      if (edits?.caption) {
+        fullDesc += ` [caption:${edits.caption}]`;
+      }
+
       const { data: video, error: insertError } = await supabase.from("videos").insert({
         user_id: user.id,
         title: title.trim(),
-        description: descWithTag,
+        description: fullDesc,
         video_url: publicUrl,
         duration,
       }).select().single();
@@ -117,7 +128,6 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
       // Save hashtags
       if (hashtags.length > 0 && video) {
         for (const tag of hashtags) {
-          // Upsert hashtag
           const { data: existing } = await supabase.from("hashtags").select("id").eq("name", tag).single();
           let hashtagId: string;
           if (existing) {
@@ -134,7 +144,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
       const label = contentType === "short" ? "Short" : contentType === "skit" ? "Skit" : contentType === "reel" ? "Reel" : "Video";
       toast.success(`${label} posted! 🎬`);
       onComplete();
-    } catch (error) {
+    } catch (error: any) {
       toast.error(error?.message || "Upload failed.");
     } finally {
       setUploading(false);
@@ -142,7 +152,7 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
   };
 
   const reset = () => {
-    setMode("choose"); setVideoFile(null); setVideoPreviewUrl(null); setTitle(""); setDescription(""); setContentType("video"); setIsShort(false); setHashtags([]); setHashtagInput("");
+    setMode("choose"); setVideoFile(null); setVideoPreviewUrl(null); setTitle(""); setDescription(""); setContentType("video"); setIsShort(false); setHashtags([]); setHashtagInput(""); setEdits(null); setVideoDuration(0);
     streamRef.current?.getTracks().forEach((t) => t.stop());
   };
 
@@ -199,13 +209,48 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
           </div>
         )}
 
-        {videoPreviewUrl && (
+        {mode === "edit" && videoPreviewUrl && (
+          <VideoEditor
+            videoUrl={videoPreviewUrl}
+            duration={videoDuration}
+            onApply={(e) => { setEdits(e); setMode("upload"); toast.success("Edits applied!"); }}
+            onCancel={() => { setEdits(null); setMode("upload"); }}
+          />
+        )}
+
+        {mode === "upload" && videoPreviewUrl && (
           <div className="space-y-4">
             <div className={`relative bg-ink rounded-lg overflow-hidden ${isVertical ? "aspect-[9/16] max-h-[400px] max-w-[225px] mx-auto" : "aspect-video"}`}>
-              <video ref={previewVideoRef} src={videoPreviewUrl} className="w-full h-full object-cover" controls onLoadedMetadata={handlePreviewLoadedMetadata} />
+              <video
+                ref={previewVideoRef}
+                src={videoPreviewUrl}
+                className="w-full h-full object-cover"
+                style={edits?.filter && edits.filter !== "none" ? { filter: getFilterCss(edits.filter) } : undefined}
+                controls
+                onLoadedMetadata={handlePreviewLoadedMetadata}
+              />
+              {edits?.caption && (
+                <div className={`absolute left-0 right-0 px-4 py-2 text-center pointer-events-none ${
+                  edits.captionPosition === "top" ? "top-4" : edits.captionPosition === "center" ? "top-1/2 -translate-y-1/2" : "bottom-12"
+                }`}>
+                  <span className="bg-ink/70 text-primary-foreground px-3 py-1.5 rounded-md text-sm font-display font-semibold">{edits.caption}</span>
+                </div>
+              )}
               <button onClick={reset} className="absolute top-3 right-3 p-1.5 bg-ink/70 rounded-full text-primary-foreground hover:bg-ink transition-colors"><X size={16} /></button>
               <Badge className="absolute top-3 left-3 text-[10px] font-display font-bold">{contentType.toUpperCase()}</Badge>
             </div>
+
+            {/* Edit button */}
+            <Button variant="outline" onClick={() => setMode("edit")} className="w-full font-display gap-2">
+              <Scissors size={14} /> {edits ? "Re-edit Video" : "Edit Video (Trim, Caption, Filter)"}
+            </Button>
+            {edits && (
+              <div className="flex flex-wrap gap-1.5">
+                {edits.filter !== "none" && <Badge variant="secondary" className="text-[10px] font-display">Filter: {edits.filter}</Badge>}
+                {edits.caption && <Badge variant="secondary" className="text-[10px] font-display">Caption added</Badge>}
+                {(edits.trimStart > 0 || edits.trimEnd < videoDuration) && <Badge variant="secondary" className="text-[10px] font-display">Trimmed</Badge>}
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               {CONTENT_TYPES.map((ct) => (
@@ -260,5 +305,16 @@ const VideoUpload = ({ onComplete }: VideoUploadProps) => {
     </div>
   );
 };
+
+function getFilterCss(filter: string): string {
+  const map: Record<string, string> = {
+    warm: "sepia(0.3) saturate(1.4) brightness(1.05)",
+    cool: "saturate(0.8) hue-rotate(15deg) brightness(1.05)",
+    bw: "grayscale(1)",
+    vintage: "sepia(0.5) contrast(1.1) brightness(0.95)",
+    vivid: "saturate(1.6) contrast(1.1)",
+  };
+  return map[filter] || "";
+}
 
 export default VideoUpload;
